@@ -1,0 +1,436 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Mini Google</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: centered search bar on top, results column left, ranking controls + link graph + page table in a right sidebar (stacks on phones). */
+:root {
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --ink: #1b2230;
+  --muted: #5d6a7c;
+  --line: #dde3ec;
+  --accent: #1f5fd1;
+  --on-accent: #ffffff;
+  --url: #1b7a4b;
+  --warn: #b4530f;
+  --warn-bg: #fdf0e4;
+  --mark: #fff0a8;
+  --edge: #9aa6b8;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --font-body: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1420; --surface: #171e2c; --ink: #e7ecf4; --muted: #9aa6b8; --line: #2a3447;
+    --accent: #7aa7ff; --on-accent: #0b1220; --url: #6fd1a0; --warn: #f0a566; --warn-bg: #2b2016;
+    --mark: #5a4c10; --edge: #56627a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1420; --surface: #171e2c; --ink: #e7ecf4; --muted: #9aa6b8; --line: #2a3447;
+  --accent: #7aa7ff; --on-accent: #0b1220; --url: #6fd1a0; --warn: #f0a566; --warn-bg: #2b2016;
+  --mark: #5a4c10; --edge: #56627a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1120px; margin: 0 auto; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(30px, 6vw, 44px); letter-spacing: -0.02em; margin: 0; text-align: center; text-wrap: balance; }
+h1 span { color: var(--accent); }
+.sub { text-align: center; color: var(--muted); margin: 4px 0 18px; font-size: 14px; }
+.searchbar { display: flex; gap: 8px; max-width: 680px; margin: 0 auto; }
+.searchbar input {
+  flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 999px; padding: 12px 20px;
+}
+.searchbar input:focus-visible, button:focus-visible, input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.searchbar button.go {
+  font: inherit; font-weight: 600; color: var(--on-accent); background: var(--accent);
+  border: 0; border-radius: 999px; padding: 0 22px; cursor: pointer;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 14px 0 26px; }
+.chips span { color: var(--muted); font-size: 13px; align-self: center; }
+.chip {
+  font: inherit; font-size: 13px; color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 999px; padding: 5px 14px; cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); }
+.chip.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 28px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.meta { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.note { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 10px 12px; font-size: 13px; margin: 0 0 14px; }
+ol.results { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.res { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; }
+.res:hover, .res:focus-visible { border-color: var(--accent); outline: none; }
+.rank { font-family: var(--font-mono); font-size: 13px; color: var(--muted); padding-top: 3px; }
+.url { font-size: 13px; color: var(--url); overflow-wrap: anywhere; }
+.url .pid { font-family: var(--font-mono); font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin-left: 6px; }
+.title { font-family: var(--font-display); font-size: 20px; font-weight: 600; color: var(--accent); margin: 2px 0 4px; }
+.snip { margin: 0 0 12px; overflow-wrap: anywhere; }
+mark { background: var(--mark); color: inherit; border-radius: 2px; padding: 0 1px; }
+.score { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px; align-items: center; border-top: 1px solid var(--line); padding-top: 12px; }
+.final .lbl, .m .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.final .num { display: block; font-family: var(--font-display); font-size: 30px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.bars { display: flex; flex-direction: column; gap: 6px; }
+.m { display: grid; grid-template-columns: 96px minmax(0, 1fr) 48px; gap: 8px; align-items: center; }
+.bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.bar.kw i { background: var(--url); }
+.val { font-family: var(--font-mono); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.formula { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); margin: 10px 0 0; overflow-wrap: anywhere; }
+.voters { margin: 10px 0 0; font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.voter { font-family: var(--font-mono); font-size: 11.5px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); border-radius: 6px; padding: 1px 7px; }
+.voters .none { color: var(--warn); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+.panel h2 { font-family: var(--font-display); font-size: 16px; margin: 0 0 10px; }
+.ctl { margin-bottom: 14px; }
+.ctl label { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+.ctl label b { font-family: var(--font-mono); font-weight: 500; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.hint { font-size: 12.5px; color: var(--muted); margin: 0; }
+.hint code { font-family: var(--font-mono); font-size: 11.5px; }
+.verdict { font-size: 13px; margin: 10px 0 0; }
+svg.graph { width: 100%; height: auto; display: block; }
+.edge { fill: none; stroke: var(--edge); stroke-width: 1.4; marker-end: url(#arr); opacity: 0.9; }
+.graph.has-focus .edge { opacity: 0.12; }
+.graph.has-focus .edge.in { opacity: 1; stroke: var(--accent); stroke-width: 2; marker-end: url(#arrIn); }
+.arrow { fill: var(--edge); }
+.arrow-in { fill: var(--accent); }
+.node circle { stroke: var(--line); stroke-width: 1.5; }
+.node.hit circle { stroke: var(--accent); stroke-width: 3; }
+.node text { font-family: var(--font-mono); font-size: 12px; font-weight: 500; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.graph.has-focus .node { opacity: 0.35; }
+.graph.has-focus .node.focus, .graph.has-focus .node.voter { opacity: 1; }
+.graph.has-focus .node.focus circle { stroke: var(--accent); stroke-width: 3; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+.table-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 500; padding: 4px 6px; }
+td { padding: 6px; border-top: 1px solid var(--line); vertical-align: middle; }
+td.n, th.n { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+tr.on td { background: var(--bg); }
+td .mini { display: block; height: 6px; background: var(--line); border-radius: 3px; margin-top: 4px; min-width: 70px; }
+td .mini i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.site { font-family: var(--font-mono); font-size: 11.5px; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: no-preference) { .bar i, .edge { transition: width 0.2s ease, opacity 0.15s ease; } }
+</style>
+
+<div class="wrap">
+  <h1>Mini <span>Google</span></h1>
+  <p class="sub">Six pages, ranked by PageRank and keyword relevance. Change the weights and watch the order move.</p>
+  <form id="f" class="searchbar" role="search">
+    <input id="q" type="search" value="pizza" placeholder="Search the six pages" autocomplete="off" aria-label="Search query">
+    <button class="go" type="submit">Search</button>
+  </form>
+  <div class="chips" id="chips"><span>Try:</span></div>
+
+  <div class="layout">
+    <section aria-live="polite">
+      <p class="meta" id="meta"></p>
+      <div id="note" class="note" hidden></div>
+      <ol class="results" id="results"></ol>
+    </section>
+
+    <aside>
+      <div class="panel">
+        <h2>Ranking mix</h2>
+        <div class="ctl">
+          <label for="w"><span>PageRank weight</span><b id="wval"></b></label>
+          <input id="w" type="range" min="0" max="100" step="1" value="60">
+        </div>
+        <div class="ctl">
+          <label for="d"><span>Damping factor</span><b id="dval"></b></label>
+          <input id="d" type="range" min="50" max="95" step="1" value="85">
+        </div>
+        <p class="hint">Final = w × (PageRank ÷ top PageRank) + (1 − w) × keyword match. Keyword match is TF-IDF with saturating term frequency (<code>tf·(k+1)/(tf+k·len)</code>), scaled so the best match is 1.</p>
+        <p class="verdict" id="verdict"></p>
+      </div>
+
+      <div class="panel">
+        <h2>Link graph</h2>
+        <svg id="graph" class="graph" viewBox="0 0 360 310" role="img" aria-label="Directed link graph of the six pages"></svg>
+        <p class="legend"><span>Arrow = link</span><span>Bigger, darker node = higher PageRank</span><span>Ring = matches query</span></p>
+        <p class="hint" id="conv"></p>
+      </div>
+
+      <div class="panel">
+        <h2>All pages</h2>
+        <div class="table-scroll"><table id="tbl"></table></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function () {
+// ==LOGIC START==
+const PAGES = [
+  { id: 1, url: "pune-food-guide.com", text: "Where to eat in Pune - vada pav and biryani and pizza", links: [2] },
+  { id: 2, url: "best-pizza-pune.com", text: "Fresh wood-fired pizza made daily - try our cheese pizza", links: [1, 3] },
+  { id: 3, url: "college-canteen-blog.com", text: "Student reviews of canteen food and chai and Friday pizza", links: [2, 4] },
+  { id: 4, url: "pizza-recipes-home.com", text: "Make pizza at home - pizza dough and pizza sauce", links: [2, 5] },
+  { id: 5, url: "cheap-eats-pune.com", text: "Good food under 100 rupees - misal and dosa and pizza slices", links: [2] },
+  { id: 6, url: "pizza-pizza-pizza.com", text: "pizza pizza pizza pizza pizza pizza pizza pizza pizza pizza", links: [1] }
+];
+const K1 = 1.2, B = 0.75;
+const tokenize = s => (s.toLowerCase().match(/[a-z0-9]+/g) || []);
+
+function pagerank(pages, d) {
+  const n = pages.length;
+  let pr = new Map(pages.map(p => [p.id, 1 / n]));
+  let it = 0;
+  for (; it < 200; it++) {
+    const next = new Map(pages.map(p => [p.id, (1 - d) / n]));
+    let dangling = 0;
+    for (const p of pages) {
+      if (p.links.length === 0) { dangling += pr.get(p.id); continue; }
+      const share = pr.get(p.id) / p.links.length;
+      for (const t of p.links) next.set(t, next.get(t) + d * share);
+    }
+    for (const p of pages) next.set(p.id, next.get(p.id) + d * dangling / n);
+    let diff = 0;
+    for (const p of pages) diff += Math.abs(next.get(p.id) - pr.get(p.id));
+    pr = next;
+    if (diff < 1e-10) { it++; break; }
+  }
+  return { pr, iterations: it };
+}
+
+function buildIndex(pages) {
+  const docs = pages.map(page => {
+    const toks = tokenize(page.text);
+    const tf = new Map();
+    for (const t of toks) tf.set(t, (tf.get(t) || 0) + 1);
+    return { page, tf, len: toks.length };
+  });
+  const df = new Map();
+  for (const doc of docs) for (const t of doc.tf.keys()) df.set(t, (df.get(t) || 0) + 1);
+  const avgdl = docs.reduce((s, x) => s + x.len, 0) / docs.length;
+  return { docs, df, N: docs.length, avgdl };
+}
+
+function scoreQuery(index, pr, qTokens, w) {
+  const terms = [...new Set(qTokens)];
+  const maxPR = Math.max(...pr.values());
+  let rows = [];
+  if (terms.length === 0) {
+    rows = index.docs.map(doc => ({ page: doc.page, kwRaw: 0, matches: {}, kw: null }));
+    for (const r of rows) { r.pr = pr.get(r.page.id); r.prN = r.pr / maxPR; r.final = r.prN; }
+  } else {
+    for (const doc of index.docs) {
+      let raw = 0; const matches = {};
+      for (const t of terms) {
+        const tf = doc.tf.get(t) || 0;
+        if (!tf) continue;
+        matches[t] = tf;
+        const dft = index.df.get(t);
+        const idf = Math.log(1 + (index.N - dft + 0.5) / (dft + 0.5));
+        raw += idf * tf * (K1 + 1) / (tf + K1 * (1 - B + B * doc.len / index.avgdl));
+      }
+      if (raw > 0) rows.push({ page: doc.page, kwRaw: raw, matches });
+    }
+    const maxKw = Math.max(...rows.map(r => r.kwRaw), 0);
+    for (const r of rows) {
+      r.kw = r.kwRaw / maxKw;
+      r.pr = pr.get(r.page.id);
+      r.prN = r.pr / maxPR;
+      r.final = w * r.prN + (1 - w) * r.kw;
+    }
+  }
+  rows.sort((a, b) => b.final - a.final || b.pr - a.pr);
+  return rows;
+}
+// ==LOGIC END==
+
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const f3 = x => x.toFixed(3);
+const index = buildIndex(PAGES);
+const byId = new Map(PAGES.map(p => [p.id, p]));
+const inlinks = id => PAGES.filter(p => p.links.includes(id));
+const niceTitle = url => url.replace(/\.com$/, "").split("-").map(s => s[0].toUpperCase() + s.slice(1)).join(" ");
+const QUICK = ["pizza", "pune", "chai", "food", "pizza pune", "misal"];
+
+let state = { q: "pizza", w: 0.6, d: 0.85, focus: null };
+let prData = pagerank(PAGES, state.d);
+let rows = [];
+
+function highlight(text, terms) {
+  return esc(text).replace(/[A-Za-z0-9]+/g, m => terms.includes(m.toLowerCase()) ? "<mark>" + m + "</mark>" : m);
+}
+
+function renderChips() {
+  const box = $("chips");
+  box.innerHTML = "<span>Try:</span>" + QUICK.map(q =>
+    `<button type="button" class="chip${state.q.trim().toLowerCase() === q ? " on" : ""}" data-q="${q}">${q}</button>`).join("");
+}
+
+function renderResults() {
+  const terms = [...new Set(tokenize(state.q))];
+  rows = scoreQuery(index, prData.pr, terms, state.w);
+  const meta = $("meta"), note = $("note"), list = $("results");
+  if (terms.length === 0) meta.textContent = "No query yet. Showing all 6 pages by PageRank.";
+  else meta.textContent = rows.length + " of 6 pages contain " + terms.map(t => "“" + t + "”").join(" or ") + ", ranked by Final score.";
+
+  const orphan = rows.filter(r => inlinks(r.page.id).length === 0);
+  if (terms.length && orphan.length) {
+    const r = orphan[0], pos = rows.indexOf(r) + 1;
+    const tf = Object.values(r.matches).reduce((a, b) => a + b, 0);
+    note.hidden = false;
+    note.textContent = `Page ${r.page.id} (${r.page.url}) repeats the query ${tf} time${tf > 1 ? "s" : ""} but has no incoming links. It ranks #${pos} of ${rows.length}.`;
+  } else { note.hidden = true; }
+
+  if (rows.length === 0) {
+    list.innerHTML = `<li class="res" style="display:block">No page contains that word. Try one of the quick searches above.</li>`;
+  } else {
+    list.innerHTML = rows.map((r, i) => {
+      const p = r.page, ins = inlinks(p.id);
+      const matched = Object.entries(r.matches).map(([t, c]) => `${t} ×${c}`).join(", ");
+      const voters = ins.length
+        ? "Voted for by: " + ins.map(v => `<span class="voter" title="gives ${f3(state.d * prData.pr.get(v.id) / v.links.length)} of its PageRank">#${v.id} ${v.url}</span>`).join("")
+        : `<span class="none">No incoming links, so no pages voted for this one.</span>`;
+      const kwRow = r.kw === null ? "" : `<div class="m"><span class="lbl">Keyword match</span><span class="bar kw"><i style="width:${(r.kw * 100).toFixed(1)}%"></i></span><span class="val">${f3(r.kw)}</span></div>`;
+      const formula = r.kw === null
+        ? "Final = PageRank ÷ top PageRank"
+        : `${state.w.toFixed(2)} × ${f3(r.prN)} + ${(1 - state.w).toFixed(2)} × ${f3(r.kw)}${matched ? " · matched " + matched : ""}`;
+      return `<li class="res" tabindex="0" data-id="${p.id}">
+        <div class="rank">#${i + 1}</div>
+        <div>
+          <div class="url">https://${p.url}<span class="pid">page ${p.id}</span></div>
+          <div class="title">${niceTitle(p.url)}</div>
+          <p class="snip">${highlight(p.text, terms)}</p>
+          <div class="score">
+            <div class="final"><span class="lbl">Final score</span><span class="num">${f3(r.final)}</span></div>
+            <div class="bars">
+              <div class="m"><span class="lbl">PageRank</span><span class="bar"><i style="width:${(r.prN * 100).toFixed(1)}%"></i></span><span class="val">${f3(r.pr)}</span></div>
+              ${kwRow}
+            </div>
+          </div>
+          <p class="formula">${formula}</p>
+          <div class="voters">${voters}</div>
+        </div>
+      </li>`;
+    }).join("");
+  }
+  renderVerdict();
+}
+
+function renderVerdict() {
+  const v = $("verdict");
+  if (!rows.length || !state.q.trim()) { v.textContent = ""; return; }
+  const top = rows[0].page;
+  v.innerHTML = `Top result: <b>page ${top.id}</b> (${top.url}).`;
+}
+
+function layout() {
+  const cx = 180, cy = 155, R = 108, pos = new Map();
+  PAGES.forEach((p, i) => {
+    const a = -Math.PI / 2 + i * 2 * Math.PI / PAGES.length;
+    pos.set(p.id, { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) });
+  });
+  return pos;
+}
+
+function renderGraph() {
+  const pos = layout(), maxPR = Math.max(...prData.pr.values());
+  const matchIds = new Set(state.q.trim() ? rows.map(r => r.page.id) : []);
+  const rad = id => 13 + 13 * (prData.pr.get(id) / maxPR);
+  let edges = "";
+  for (const p of PAGES) for (const t of p.links) {
+    const a = pos.get(p.id), b = pos.get(t);
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
+    const cxm = (a.x + b.x) / 2 + (dy / len) * 22, cym = (a.y + b.y) / 2 - (dx / len) * 22;
+    const u = (x1, y1, x2, y2) => { const l = Math.hypot(x2 - x1, y2 - y1); return [(x2 - x1) / l, (y2 - y1) / l]; };
+    const [sx, sy] = u(a.x, a.y, cxm, cym), [ex, ey] = u(b.x, b.y, cxm, cym);
+    const x1 = a.x + sx * rad(p.id), y1 = a.y + sy * rad(p.id);
+    const x2 = b.x + ex * (rad(t) + 5), y2 = b.y + ey * (rad(t) + 5);
+    edges += `<path class="edge" data-from="${p.id}" data-to="${t}" d="M${x1.toFixed(1)} ${y1.toFixed(1)} Q${cxm.toFixed(1)} ${cym.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}"/>`;
+  }
+  let nodes = "";
+  for (const p of PAGES) {
+    const c = pos.get(p.id), r = rad(p.id), rel = prData.pr.get(p.id) / maxPR;
+    const pct = Math.round(18 + 72 * rel);
+    nodes += `<g class="node${matchIds.has(p.id) ? " hit" : ""}" data-id="${p.id}">
+      <title>Page ${p.id}: ${p.url}, PageRank ${f3(prData.pr.get(p.id))}</title>
+      <circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="${r.toFixed(1)}" style="fill:color-mix(in srgb, var(--accent) ${pct}%, var(--surface))"/>
+      <text x="${c.x.toFixed(1)}" y="${c.y.toFixed(1)}" style="fill:${pct > 55 ? "var(--on-accent)" : "var(--ink)"}">${p.id}</text>
+    </g>`;
+  }
+  $("graph").innerHTML = `<defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="arrow" d="M0 0L10 5L0 10z"/></marker>
+    <marker id="arrIn" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="arrow-in" d="M0 0L10 5L0 10z"/></marker>
+  </defs>${edges}${nodes}`;
+  $("conv").textContent = `PageRank converged in ${prData.iterations} iterations (damping ${state.d.toFixed(2)}). Scores sum to 1.`;
+  applyFocus();
+}
+
+function renderTable() {
+  const maxPR = Math.max(...prData.pr.values());
+  const sorted = [...PAGES].sort((a, b) => prData.pr.get(b.id) - prData.pr.get(a.id));
+  $("tbl").innerHTML = `<thead><tr><th>Page</th><th>PageRank</th><th class="n">In</th><th class="n">Out</th></tr></thead><tbody>` +
+    sorted.map(p => {
+      const v = prData.pr.get(p.id);
+      return `<tr data-id="${p.id}"><td><span class="site">#${p.id} ${p.url}</span></td>
+        <td class="n">${f3(v)}<span class="mini"><i style="width:${(v / maxPR * 100).toFixed(1)}%"></i></span></td>
+        <td class="n">${inlinks(p.id).length}</td><td class="n">${p.links.length}</td></tr>`;
+    }).join("") + `</tbody>`;
+  applyFocus();
+}
+
+function applyFocus() {
+  const g = $("graph"), id = state.focus;
+  g.classList.toggle("has-focus", id !== null);
+  const voterIds = id === null ? [] : inlinks(id).map(p => p.id);
+  g.querySelectorAll(".edge").forEach(e => e.classList.toggle("in", id !== null && +e.dataset.to === id));
+  g.querySelectorAll(".node").forEach(n => {
+    const nid = +n.dataset.id;
+    n.classList.toggle("focus", nid === id);
+    n.classList.toggle("voter", voterIds.includes(nid));
+  });
+  document.querySelectorAll("#tbl tr[data-id]").forEach(tr => tr.classList.toggle("on", +tr.dataset.id === id));
+}
+
+function setFocus(id) { state.focus = id; applyFocus(); }
+
+function updateLabels() {
+  $("wval").textContent = Math.round(state.w * 100) + "% PageRank · " + Math.round((1 - state.w) * 100) + "% keywords";
+  $("dval").textContent = state.d.toFixed(2);
+}
+
+function renderAll() {
+  updateLabels(); renderChips(); renderResults(); renderGraph(); renderTable();
+}
+
+$("f").addEventListener("submit", e => { e.preventDefault(); state.q = $("q").value; renderAll(); });
+$("q").addEventListener("input", () => { state.q = $("q").value; renderAll(); });
+$("chips").addEventListener("click", e => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  $("q").value = b.dataset.q; state.q = b.dataset.q; renderAll();
+});
+$("w").addEventListener("input", e => { state.w = e.target.value / 100; updateLabels(); renderResults(); renderGraph(); });
+$("d").addEventListener("input", e => {
+  state.d = e.target.value / 100; prData = pagerank(PAGES, state.d); renderAll();
+});
+
+const resList = $("results");
+resList.addEventListener("mouseover", e => { const c = e.target.closest(".res[data-id]"); if (c) setFocus(+c.dataset.id); });
+resList.addEventListener("mouseleave", () => setFocus(null));
+resList.addEventListener("focusin", e => { const c = e.target.closest(".res[data-id]"); if (c) setFocus(+c.dataset.id); });
+resList.addEventListener("focusout", () => setFocus(null));
+$("graph").addEventListener("mouseover", e => { const n = e.target.closest(".node"); if (n) setFocus(+n.dataset.id); });
+$("graph").addEventListener("mouseleave", () => setFocus(null));
+$("tbl").addEventListener("mouseover", e => { const t = e.target.closest("tr[data-id]"); if (t) setFocus(+t.dataset.id); });
+$("tbl").addEventListener("mouseleave", () => setFocus(null));
+
+renderAll();
+})();
+</script>
+
+</body></html>
